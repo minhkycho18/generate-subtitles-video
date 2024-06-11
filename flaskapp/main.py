@@ -56,11 +56,15 @@ def slice_wav():
         sliced_audio = audio[start_time:end_time]
         sliced_audio_name = FOLDER_NAME + "/" + str(start_time) + "_" + str(end_time) + ".wav"
         sliced_audio.export(sliced_audio_name, format="wav")
+        print("Start time: " + str(start_time) + " ")
+        print("End time: " + str(end_time) + "\n")
 
         sliced_audios.append(sliced_audio_name)
 
 
 def asr(result):
+    result += "WEBVTT" + "\n"
+    # print(result)
     for audioSrc in sliced_audios:
         waveform, sample_rate = torchaudio.load(audioSrc)
         waveform = waveform.to(device)
@@ -79,10 +83,9 @@ def asr(result):
         # Write file
         time_info = f"{sec2time(start_time / 1000)} --> {sec2time(end_time / 1000)}"  # subrip subtitle file time format
         text_info = transcript
-        line_info = "\n" + time_info + "\n" + text_info + "\n\n"
-        # print(line_info)
+        line_info = "\n" + time_info + "\n" + text_info + "\n"
+        print(line_info)
         result += line_info
-
     return result
 
 def sec2time(sec, n_msec=3):

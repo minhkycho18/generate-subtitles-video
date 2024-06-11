@@ -1,11 +1,12 @@
 from flask import Flask, request, make_response
 from flask_restful import Resource, Api
-
+from flask_cors import CORS
 from CustomThread import CustomThread
 from main import *
+from waitress import serve
 
 app = Flask(__name__)
-
+cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
 api = Api(app)
 
 
@@ -36,7 +37,8 @@ class Videos(Resource):
         response.mimetype = "text/plain"
         return response
 
-api.add_resource(Videos, '/')
+api.add_resource(Videos, '/api/')
 
 if __name__ == '__main__':
-    app.run(debug=True, threaded=True)
+    # app.run(debug=True, threaded=True)
+    serve(app, host='0.0.0.0', port=8080)
