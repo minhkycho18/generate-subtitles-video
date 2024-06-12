@@ -1,4 +1,4 @@
-from flask import Flask, request, make_response
+from flask import Flask, request, make_response, send_file
 from flask_restful import Resource, Api
 from flask_cors import CORS
 from CustomThread import CustomThread
@@ -37,7 +37,25 @@ class Videos(Resource):
         response.mimetype = "text/plain"
         return response
 
+
+class VideosDownload(Resource):
+    def post(self):
+        input_text = request.get_data(as_text=True)
+        videoUrl = request.args.get('videoUrl')
+        add_subtitles_to_movie(videoUrl=videoUrl, subtitle_str=input_text)
+        # try:
+            # Check if the file exists
+        file_path = "output.mp4"
+        if not os.path.isfile(file_path):
+            return {"message": "File not found"}, 404
+        # Send the file to the client
+        return send_file(file_path, as_attachment=True)
+        # except Exception as e:
+        #     return {"message": f"An error occurred: {str(e)}"}, 500
+
+
 api.add_resource(Videos, '/api/')
+api.add_resource(VideosDownload, '/download')
 
 if __name__ == '__main__':
     # app.run(debug=True, threaded=True)
