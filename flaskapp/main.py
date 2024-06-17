@@ -1,15 +1,14 @@
-import os
-import shutil
 import re
+import shutil
+
 import torch
 import torchaudio
-from moviepy.editor import VideoFileClip
+from moviepy.editor import *
+from moviepy.video.tools.subtitles import SubtitlesClip
 from pyannote.audio import Model
 from pyannote.audio.pipelines import VoiceActivityDetection
 from pydub import AudioSegment
-from moviepy.editor import *
-from moviepy.video.tools.subtitles import SubtitlesClip
-from moviepy.config import change_settings
+
 
 # Set the path to ImageMagick's `magick.exe` binary
 # change_settings({"IMAGEMAGICK_BINARY": r"C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"})
@@ -29,10 +28,10 @@ class GreedyCTCDecoder(torch.nn.Module):
         return "".join([self.labels[i] for i in indices])
 
 
-FOLDER_NAME = "slice-audios"
-INPUT_VIDEO = "https://res.cloudinary.com/dm7tnmhj4/video/upload/v1716024510/my_folder/vphm3dbzxc9relgr6jmy.mp4"  # Path to input video file
-OUTPUT_AUDIO_PATH = FOLDER_NAME + "/output_audio.wav"  # Path to output audio file
-SUBTITLE_FILE_PATH = FOLDER_NAME + "/myfile.txt"
+# FOLDER_NAME = "slice-audios"
+# INPUT_VIDEO = "https://res.cloudinary.com/dm7tnmhj4/video/upload/v1716024510/my_folder/vphm3dbzxc9relgr6jmy.mp4"  # Path to input video file
+# OUTPUT_AUDIO_PATH = FOLDER_NAME + "/output_audio.wav"  # Path to output audio file
+# SUBTITLE_FILE_PATH = FOLDER_NAME + "/myfile.txt"
 
 # SpeechRecognition set up
 torch.random.manual_seed(0)
@@ -40,12 +39,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 bundle = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H
 model = bundle.get_model().to(device)
 
+
 # VoiceActivityDetection set up
 # login("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", add_to_git_credential=True)
-sliced_audios = list()
 
 
-def slice_wav():
+def slice_wav(folder_path):
+    sliced_audios = list()
     model = Model.from_pretrained("pyannote/segmentation-3.0", use_auth_token="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")
     pipeline = VoiceActivityDetection(segmentation=model)
     HYPER_PARAMETERS = {
@@ -53,26 +53,28 @@ def slice_wav():
         "min_duration_off": 0.0
     }
     pipeline.instantiate(HYPER_PARAMETERS)
-    vad = pipeline(OUTPUT_AUDIO_PATH)
+    outputAudioPath = folder_path + "/output_audio.wav"
+    vad = pipeline(outputAudioPath)
     for speech_turn, track, speaker in vad.itertracks(yield_label=True):
         # Slice audio
-        audio = AudioSegment.from_mp3(OUTPUT_AUDIO_PATH)
+        audio = AudioSegment.from_mp3(outputAudioPath)
         start_time = speech_turn.start * 1000
         end_time = speech_turn.end * 1000
 
         sliced_audio = audio[start_time:end_time]
-        sliced_audio_name = FOLDER_NAME + "/" + str(start_time) + "_" + str(end_time) + ".wav"
+        sliced_audio_name = folder_path + "/" + str(start_time) + "_" + str(end_time) + ".wav"
         sliced_audio.export(sliced_audio_name, format="wav")
-        print("Start time: " + str(start_time) + " ")
-        print("End time: " + str(end_time) + "\n")
+        # print("Start time: " + str(start_time) + " ")
+        # print("End time: " + str(end_time) + "\n")
 
         sliced_audios.append(sliced_audio_name)
 
+    return sliced_audios
 
-def asr(result):
+
+def asr(result, folder_path_asr, sliced_audios_handled):
     result += "WEBVTT" + "\n"
-    # print(result)
-    for audioSrc in sliced_audios:
+    for audioSrc in sliced_audios_handled:
         waveform, sample_rate = torchaudio.load(audioSrc)
         waveform = waveform.to(device)
 
@@ -85,7 +87,8 @@ def asr(result):
         transcript = str(decoder(emission[0]))
 
         transcript = transcript.lower().capitalize().replace("|", " ")
-        start_time, end_time = map(float, audioSrc.replace(FOLDER_NAME + "/", "").replace(".wav", "").split('_')[:2])
+        start_time, end_time = map(float,
+                                   audioSrc.replace(folder_path_asr + "/", "").replace(".wav", "").split('_')[:2])
 
         # Write file
         time_info = f"{sec2time(start_time / 1000)} --> {sec2time(end_time / 1000)}"  # subrip subtitle file time format
@@ -149,21 +152,22 @@ def parse_subtitles(subtitle_str):
     return subs
 
 
-def createAudiosDir():
-    folder_path = os.getcwd() + "/" + FOLDER_NAME
+def createAudiosDir(folder_name):
+    folder_path = os.getcwd() + "/" + folder_name
     try:
         os.makedirs(folder_path)
-        print("Folder created successfully.")
+        print("Folder created successfully." + folder_name)
     except OSError as e:
         print(f"Error: {folder_path} : {e.strerror}")
 
 
-def removeAudiosDir():
-    folder_path = os.getcwd() + "/" + FOLDER_NAME
+def removeAudiosDir(folder_name):
+    folder_path = os.getcwd() + "/" + folder_name
 
     try:
+        print(folder_path)
         shutil.rmtree(folder_path)
-        print("Folder deleted successfully.")
+        print("Folder deleted successfully." + folder_name)
     except OSError as e:
         print(f"Error: {folder_path} : {e.strerror}")
 
@@ -179,7 +183,7 @@ def video_to_audio(input_video, output_audio):
     audio_clip.write_audiofile(output_audio)
 
 
-#|GJy8iIBL)ez
+# |GJy8iIBL)ez
 
 def parse_subtitles_main(subtitle_str):
     subtitle_str = (subtitle_str.replace("WEBVTT", "")
